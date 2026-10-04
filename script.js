@@ -103,7 +103,7 @@ function labelKartu(status, hariMk) {
 
 function kunciKartu(hasil) {
   if (!hasil) return "kosong";
-  return `${hasil.mk.kode}|${hasil.status}`;
+  return `${hasil.mk.kode}|${hasil.status}|${labelKartu(hasil.status, hasil.mk.hari)}`;
 }
 
 function renderKuliahBerikutnya() {
