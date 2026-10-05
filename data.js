@@ -6,9 +6,16 @@ const mahasiswa = {
   prodi: "Sistem Informasi"
 };
 
+// ---------- Info semester ----------
+const semester = {
+  label: "Semester Ganjil 2026/2027"
+};
+
 // ---------- Daftar mata kuliah ----------
 // Urutkan per hari dan per jam. Field "materi" berisi link folder Drive.
 // Kalau tidak ada link, isi dengan string kosong "".
+// Format jam wajib "HH:MM-HH:MM" (contoh: "08:20-10:50").
+// Tambahkan "online: true" kalau mata kuliah ini daring (tanpa ruang fisik).
 const mataKuliah = [
   {
     kode: "0624",
@@ -27,6 +34,7 @@ const mataKuliah = [
     jam: "12:30-15:00",
     sks: 3,
     ruang: "EN2-N1",
+    online: true,
     dosen: "YUH",
     materi: "https://drive.google.com/drive/folders/1-Q3fBLERj3tcLfbUDkZTCygOEUxZFBPs"
   },
@@ -87,6 +95,7 @@ const mataKuliah = [
     jam: "15:00-16:40",
     sks: 2,
     ruang: "EL2-N1",
+    online: true,
     dosen: "DED",
     materi: "https://drive.google.com/drive/folders/1AyoWK-AF9APXeb3p0FXuaouMofDCRnwK"
   }
