@@ -7,56 +7,10 @@ const namaBulan = [
 
 const state = {
   kunciKartu: null,
-  timerPerubahan: null,
-  kuliahAktif: null
+  timerPerubahan: null
 };
 
-// ---------- Validasi data ----------
-
-function validasiData() {
-  const masalah = [];
-
-  if (!Array.isArray(mataKuliah)) {
-    masalah.push("mataKuliah bukan array.");
-    return masalah;
-  }
-
-  mataKuliah.forEach((mk, i) => {
-    const label = `mataKuliah[${i}] (${mk && mk.nama ? mk.nama : "tanpa nama"})`;
-
-    if (!mk || typeof mk !== "object") {
-      masalah.push(`${label}: bukan objek.`);
-      return;
-    }
-    if (!mk.kode || typeof mk.kode !== "string") {
-      masalah.push(`${label}: field "kode" wajib string.`);
-    }
-    if (!mk.nama || typeof mk.nama !== "string") {
-      masalah.push(`${label}: field "nama" wajib string.`);
-    }
-    if (!urutanHari.includes(mk.hari)) {
-      masalah.push(`${label}: hari "${mk.hari}" tidak dikenal.`);
-    }
-    if (typeof mk.jam !== "string" || !/^\d{2}:\d{2}-\d{2}:\d{2}$/.test(mk.jam)) {
-      masalah.push(`${label}: jam "${mk.jam}" tidak sesuai format HH:MM-HH:MM.`);
-      return;
-    }
-    const [mulai, selesai] = mk.jam.split("-");
-    if (jamKeMenit(selesai) <= jamKeMenit(mulai)) {
-      masalah.push(`${label}: jam selesai harus lebih besar dari jam mulai.`);
-    }
-  });
-
-  return masalah;
-}
-
-function tampilkanMasalahData(masalah) {
-  if (masalah.length === 0) return;
-  console.warn("Ditemukan masalah pada data mata kuliah:");
-  masalah.forEach(m => console.warn(" - " + m));
-}
-
-// ---------- Utilitas waktu ----------
+// ---------- Utilitas ----------
 
 function jamKeMenit(jam) {
   const [h, m] = jam.split(":").map(Number);
@@ -78,103 +32,34 @@ function selisihHariKe(hariTarget) {
   return (iTarget - iSekarang + 7) % 7;
 }
 
-function selisihDetikKe(hariDepan, jamStr) {
-  const [h, m] = jamStr.split(":").map(Number);
-  const target = new Date();
-  target.setDate(target.getDate() + hariDepan);
-  target.setHours(h, m, 0, 0);
-  return Math.round((target - new Date()) / 1000);
-}
-
-function formatDurasi(totalDetik) {
-  if (totalDetik <= 0) return "sekarang";
-
-  const hari = Math.floor(totalDetik / 86400);
-  const jam = Math.floor((totalDetik % 86400) / 3600);
-  const menit = Math.floor((totalDetik % 3600) / 60);
-  const detik = totalDetik % 60;
-
-  const bagian = [];
-
-  if (hari > 0) bagian.push(`${hari} hari`);
-  if (jam > 0) bagian.push(`${jam} jam`);
-  if (menit > 0) bagian.push(`${menit} menit`);
-  if (detik > 0 || bagian.length === 0) bagian.push(`${detik} detik`);
-
-  return bagian.join(" ");
-}
-
-// ---------- Utilitas tampilan ----------
-
-function ruangHTML(mk) {
-  if (mk.online) {
-    return `<span class="badge-online">Online</span>`;
-  }
-  return `<span>Ruang ${mk.ruang}</span>`;
-}
-
-function ringkasanHari(daftar) {
-  const totalSks = daftar.reduce((sum, mk) => sum + (mk.sks || 0), 0);
-  return `${daftar.length} MK · ${totalSks} SKS`;
+function pad(n) {
+  return String(n).padStart(2, "0");
 }
 
 // ---------- Tema ----------
 
 function terapkanTema(tema) {
-  if (tema === "gelap" || tema === "terang") {
-    document.documentElement.dataset.tema = tema;
-  } else {
-    delete document.documentElement.dataset.tema;
-  }
-  perbaruiIkonTema();
-}
-
-function temaEfektifGelap() {
-  const tema = document.documentElement.dataset.tema;
-  if (tema === "gelap") return true;
-  if (tema === "terang") return false;
-  return window.matchMedia("(prefers-color-scheme: dark)").matches;
-}
-
-function perbaruiIkonTema() {
-  const tombol = document.getElementById("theme-toggle");
-  if (!tombol) return;
-  tombol.classList.toggle("tema-gelap", temaEfektifGelap());
+  document.documentElement.dataset.tema = tema;
+  try {
+    localStorage.setItem("tema", tema);
+  } catch (e) {}
 }
 
 function inisialisasiTema() {
   const tombol = document.getElementById("theme-toggle");
   if (!tombol) return;
-
   tombol.addEventListener("click", () => {
-    const temaSekarang = temaEfektifGelap() ? "gelap" : "terang";
-    const temaBaru = temaSekarang === "gelap" ? "terang" : "gelap";
-    try {
-      localStorage.setItem("tema", temaBaru);
-    } catch (e) {}
-    terapkanTema(temaBaru);
+    const sekarang = document.documentElement.dataset.tema;
+    terapkanTema(sekarang === "gelap" ? "terang" : "gelap");
   });
-
-  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
-    if (!document.documentElement.dataset.tema) perbaruiIkonTema();
-  });
-
-  perbaruiIkonTema();
 }
 
 // ---------- Jam realtime ----------
 
 function renderJam() {
   const d = new Date();
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  const ss = String(d.getSeconds()).padStart(2, "0");
-
   document.getElementById("jam-sekarang").textContent =
-    `${namaHari[d.getDay()]}, ${d.getDate()} ${namaBulan[d.getMonth()]} · ${hh}:${mm}:${ss}`;
-
-  renderHitungMundur();
-  perbaruiProgressBar();
+    `${namaHari[d.getDay()]}, ${d.getDate()} ${namaBulan[d.getMonth()]} · ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
 // ---------- Header ----------
@@ -184,10 +69,69 @@ function renderHeader() {
   document.getElementById("info-nim").textContent = mahasiswa.nim;
   document.getElementById("info-kelas").textContent = mahasiswa.kelas;
   document.getElementById("info-prodi").textContent = mahasiswa.prodi;
+  const el = document.getElementById("info-semester");
+  if (el) el.textContent = semester.label;
+}
 
-  const elSemester = document.getElementById("info-semester");
-  if (elSemester && typeof semester !== "undefined" && semester.label) {
-    elSemester.textContent = semester.label;
+// ---------- Hitungan mundur ----------
+
+function targetWaktuKuliah(hasil) {
+  if (!hasil) return null;
+
+  const { mk, status } = hasil;
+  const [jamMulai, jamSelesai] = mk.jam.split("-");
+  const selisihHari = selisihHariKe(mk.hari);
+
+  const sekarang = new Date();
+  const target = new Date(sekarang);
+  target.setSeconds(0, 0);
+  target.setDate(sekarang.getDate() + selisihHari);
+
+  if (status === "berlangsung") {
+    const [h, m] = jamSelesai.split(":").map(Number);
+    target.setHours(h, m, 0, 0);
+    return target;
+  }
+
+  const [h, m] = jamMulai.split(":").map(Number);
+  target.setHours(h, m, 0, 0);
+  return target;
+}
+
+function formatDurasi(ms) {
+  if (ms <= 0) return "sekarang";
+  const totalDetik = Math.floor(ms / 1000);
+  const hari = Math.floor(totalDetik / 86400);
+  const jam = Math.floor((totalDetik % 86400) / 3600);
+  const menit = Math.floor((totalDetik % 3600) / 60);
+  const detik = totalDetik % 60;
+
+  const bagian = [];
+  if (hari > 0) bagian.push(`${hari} hari`);
+  if (jam > 0 || hari > 0) bagian.push(`${jam} jam`);
+  if (menit > 0 || jam > 0 || hari > 0) bagian.push(`${menit} menit`);
+  bagian.push(`${detik} detik`);
+
+  return bagian.join(" ");
+}
+
+function renderHitungMundur() {
+  const el = document.getElementById("hitung-mundur");
+  if (!el) return;
+
+  const hasil = cariKuliahSekarang();
+  const target = targetWaktuKuliah(hasil);
+  if (!target) {
+    el.textContent = "";
+    return;
+  }
+
+  const sisa = target - new Date();
+
+  if (hasil.status === "berlangsung") {
+    el.textContent = `Berakhir dalam ${formatDurasi(sisa)}`;
+  } else {
+    el.textContent = `Mulai dalam ${formatDurasi(sisa)}`;
   }
 }
 
@@ -197,45 +141,43 @@ function cariKuliahSekarang() {
   if (mataKuliah.length === 0) return null;
 
   const menit = menitSekarang();
-  if (urutanHari.indexOf(hariIni()) === -1) return null;
+  const mulai = urutanHari.indexOf(hariIni());
+  if (mulai === -1) return null;
 
-  const kandidat = mataKuliah
-    .map(mk => {
-      const selisih = selisihHariKe(mk.hari);
+  for (let i = mulai; i < urutanHari.length; i++) {
+    const hari = urutanHari[i];
+    const daftarHariIni = mataKuliah.filter(mk => mk.hari === hari);
+    if (daftarHariIni.length === 0) continue;
+
+    for (const mk of daftarHariIni) {
       const [jamMulai, jamSelesai] = mk.jam.split("-");
-      return {
-        mk,
-        selisih,
-        mulai: jamKeMenit(jamMulai),
-        selesai: jamKeMenit(jamSelesai)
-      };
-    })
-    .sort((a, b) => {
-      if (a.selisih !== b.selisih) return a.selisih - b.selisih;
-      return a.mulai - b.mulai;
-    });
+      const m1 = jamKeMenit(jamMulai);
+      const m2 = jamKeMenit(jamSelesai);
 
-  for (const k of kandidat) {
-    if (k.selisih === 0) {
-      if (menit >= k.mulai && menit < k.selesai) {
-        return { mk: k.mk, status: "berlangsung", selisihHari: 0 };
+      if (i === mulai) {
+        if (menit >= m1 && menit < m2) {
+          return { mk, status: "berlangsung" };
+        }
+        if (menit < m1) {
+          return { mk, status: "akan-datang" };
+        }
+      } else {
+        return { mk, status: "akan-datang" };
       }
-      if (menit < k.mulai) {
-        return { mk: k.mk, status: "akan-datang", selisihHari: 0 };
-      }
-      continue;
     }
-    return { mk: k.mk, status: "akan-datang", selisihHari: k.selisih };
   }
 
-  const pertamaMingguDepan = kandidat[0];
-  if (!pertamaMingguDepan) return null;
-  return { mk: pertamaMingguDepan.mk, status: "minggu-depan", selisihHari: pertamaMingguDepan.selisih };
+  const pertamaMingguDepan = [...mataKuliah].sort((a, b) => {
+    const selisihHari = urutanHari.indexOf(a.hari) - urutanHari.indexOf(b.hari);
+    if (selisihHari !== 0) return selisihHari;
+    return jamKeMenit(a.jam.split("-")[0]) - jamKeMenit(b.jam.split("-")[0]);
+  })[0];
+
+  return { mk: pertamaMingguDepan, status: "minggu-depan" };
 }
 
 function labelKartu(status, hariMk) {
   if (status === "berlangsung") return "Sedang berlangsung";
-  if (status === "minggu-depan") return `${hariMk} (minggu depan)`;
 
   const selisih = selisihHariKe(hariMk);
   if (selisih === 0) return "Hari ini";
@@ -243,48 +185,20 @@ function labelKartu(status, hariMk) {
   return hariMk;
 }
 
-function judulSection(hasil) {
-  if (!hasil) return "Kuliah berikutnya";
-  if (hasil.status === "berlangsung") return "Sedang berlangsung";
-  if (hasil.status === "minggu-depan") return "Kuliah minggu depan";
-  return "Kuliah berikutnya";
-}
-
 function kunciKartu(hasil) {
   if (!hasil) return "kosong";
   return `${hasil.mk.kode}|${hasil.status}|${labelKartu(hasil.status, hasil.mk.hari)}`;
 }
 
-function hitungMundurUntuk(hasil) {
-  if (!hasil) return "";
-
-  const { mk, status, selisihHari } = hasil;
-  const [jamMulai, jamSelesai] = mk.jam.split("-");
-
-  if (status === "berlangsung") {
-    const sisa = selisihDetikKe(0, jamSelesai);
-    return `Berakhir dalam ${formatDurasi(sisa)}`;
-  }
-
-  const sisa = selisihDetikKe(selisihHari, jamMulai);
-  return `Mulai dalam ${formatDurasi(sisa)}`;
-}
-
 function renderKuliahBerikutnya() {
   const container = document.getElementById("kuliah-berikutnya");
-  const judulEl = document.getElementById("judul-kuliah");
   const hasil = cariKuliahSekarang();
   const kunci = kunciKartu(hasil);
 
   if (kunci === state.kunciKartu) return;
   state.kunciKartu = kunci;
 
-  if (judulEl) {
-    judulEl.textContent = judulSection(hasil);
-  }
-
   if (!hasil) {
-    state.kuliahAktif = null;
     container.innerHTML = `
       <div class="next-card next-kosong">
         Belum ada data mata kuliah.
@@ -293,15 +207,10 @@ function renderKuliahBerikutnya() {
     return;
   }
 
-  state.kuliahAktif = hasil;
-
   const { mk, status } = hasil;
   const label = labelKartu(status, mk.hari);
   const kelas = status === "berlangsung" ? "next-berlangsung" : "";
   const [jamMulai, jamSelesai] = mk.jam.split("-");
-  const progressHTML = status === "berlangsung"
-    ? `<div class="progress"><div class="progress-fill" id="progress-fill"></div></div>`
-    : "";
 
   container.innerHTML = `
     <div class="next-card ${kelas}">
@@ -312,57 +221,35 @@ function renderKuliahBerikutnya() {
         <span class="meta-sep">·</span>
         <span>${jamMulai} – ${jamSelesai}</span>
         <span class="meta-sep">·</span>
-        ${ruangHTML(mk)}
+        <span>Ruang ${mk.ruang}</span>
         <span class="meta-sep">·</span>
         <span>${mk.sks} SKS</span>
         <span class="meta-sep">·</span>
         <span>Kode dosen: ${mk.dosen}</span>
       </div>
+      <div class="next-action">
+        ${mk.materi
+          ? `<a class="btn" href="${mk.materi}" target="_blank" rel="noopener">Buka materi</a>`
+          : `<span class="btn disabled">Belum ada</span>`}
+      </div>
       <div class="next-countdown" id="hitung-mundur"></div>
-      ${progressHTML}
     </div>
   `;
 
   renderHitungMundur();
-  perbaruiProgressBar();
-}
-
-function renderHitungMundur() {
-  const el = document.getElementById("hitung-mundur");
-  if (!el || !state.kuliahAktif) return;
-  el.textContent = hitungMundurUntuk(state.kuliahAktif);
-}
-
-function perbaruiProgressBar() {
-  const fill = document.getElementById("progress-fill");
-  if (!fill || !state.kuliahAktif) return;
-  if (state.kuliahAktif.status !== "berlangsung") return;
-
-  const { mk } = state.kuliahAktif;
-  const [jamMulai, jamSelesai] = mk.jam.split("-");
-  const m1 = jamKeMenit(jamMulai);
-  const m2 = jamKeMenit(jamSelesai);
-  const sekarang = menitSekarang();
-  const persen = Math.max(0, Math.min(100, ((sekarang - m1) / (m2 - m1)) * 100));
-
-  fill.style.width = persen.toFixed(2) + "%";
 }
 
 // ---------- Jadwal mingguan ----------
 
-function mkBerikutnyaKode() {
-  const hasil = cariKuliahSekarang();
-  if (!hasil) return null;
-  if (hasil.status === "berlangsung") return hasil.mk.kode;
-  if (hasil.selisihHari === 0) return hasil.mk.kode;
-  return null;
+function ringkasanHari(daftar) {
+  const jumlahMk = daftar.length;
+  const jumlahSks = daftar.reduce((total, mk) => total + (mk.sks || 0), 0);
+  return `${jumlahMk} MK · ${jumlahSks} SKS`;
 }
 
 function renderJadwal() {
   const container = document.getElementById("daftar-hari");
   container.innerHTML = "";
-
-  const kodeBerikutnya = mkBerikutnyaKode();
 
   urutanHari.forEach(hari => {
     const daftar = mataKuliah.filter(mk => mk.hari === hari);
@@ -372,19 +259,14 @@ function renderJadwal() {
     div.className = "hari";
     div.dataset.hari = hari;
 
-    const header = document.createElement("div");
-    header.className = "hari-header";
-
     const h3 = document.createElement("h3");
     h3.textContent = hari;
-    header.appendChild(h3);
+    div.appendChild(h3);
 
-    const ringkasan = document.createElement("span");
-    ringkasan.className = "hari-ringkasan";
-    ringkasan.textContent = ringkasanHari(daftar);
-    header.appendChild(ringkasan);
-
-    div.appendChild(header);
+    const ringkas = document.createElement("span");
+    ringkas.className = "hari-ringkas";
+    ringkas.textContent = ringkasanHari(daftar);
+    h3.appendChild(ringkas);
 
     daftar.forEach(mk => {
       const [jamMulai, jamSelesai] = mk.jam.split("-");
@@ -393,7 +275,16 @@ function renderJadwal() {
       item.className = "mk";
       item.dataset.kode = mk.kode;
       item.dataset.jam = mk.jam;
-      if (mk.kode === kodeBerikutnya) item.classList.add("mk-berikutnya");
+
+      const detail = [];
+      detail.push(`<span>${mk.ruang}</span>`);
+      if (mk.online) {
+        detail.push(`<span class="badge-online">MK Online</span>`);
+      }
+      detail.push(`<span class="meta-sep">·</span>`);
+      detail.push(`<span>Kode dosen: ${mk.dosen}</span>`);
+      detail.push(`<span class="meta-sep">·</span>`);
+      detail.push(`<span>${mk.sks} SKS</span>`);
 
       item.innerHTML = `
         <div class="mk-jam">
@@ -402,13 +293,7 @@ function renderJadwal() {
         </div>
         <div class="mk-info">
           <div class="nama">${mk.nama}</div>
-          <div class="detail">
-            ${ruangHTML(mk)}
-            <span class="meta-sep">·</span>
-            <span>Kode dosen: ${mk.dosen}</span>
-            <span class="meta-sep">·</span>
-            <span>${mk.sks} SKS</span>
-          </div>
+          <div class="detail">${detail.join(" ")}</div>
         </div>
         <div class="mk-action">
           ${mk.materi
@@ -458,18 +343,10 @@ function perbaruiHighlight() {
   });
 }
 
-function perbaruiPenandaBerikutnya() {
-  const kodeBerikutnya = mkBerikutnyaKode();
-  document.querySelectorAll(".mk").forEach(baris => {
-    baris.classList.toggle("mk-berikutnya", baris.dataset.kode === kodeBerikutnya);
-  });
-}
-
 function perbarui() {
   renderKuliahBerikutnya();
   perbaruiHighlight();
   perbaruiStatusBaris();
-  perbaruiPenandaBerikutnya();
 }
 
 // ---------- Penjadwalan tepat waktu ----------
@@ -502,7 +379,7 @@ function milidetikKePerubahanBerikutnya() {
   }
 
   const totalDetik = sisaDetikKeMenitBerikutnya + (selisihMenit - 1) * 60;
-  return Math.max(totalDetik, 1) * 1000 + 200;
+  return totalDetik * 1000 + 200;
 }
 
 function jadwalkanPerubahanBerikutnya() {
@@ -517,20 +394,22 @@ function jadwalkanPerubahanBerikutnya() {
 // ---------- Inisialisasi ----------
 
 document.addEventListener("DOMContentLoaded", () => {
-  tampilkanMasalahData(validasiData());
+  inisialisasiTema();
   renderHeader();
   renderJadwal();
   perbarui();
   renderJam();
-  inisialisasiTema();
   jadwalkanPerubahanBerikutnya();
+
   setInterval(renderJam, 1000);
+  setInterval(renderHitungMundur, 1000);
 });
 
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) {
     perbarui();
     renderJam();
+    renderHitungMundur();
     jadwalkanPerubahanBerikutnya();
   }
 });

@@ -1,5 +1,5 @@
 /* ============================================================
-   Design system
+   Design system — terang
    ============================================================ */
 :root {
   --bg:            #f7f8fa;
@@ -20,6 +20,9 @@
   --live:          #16a34a;
   --live-soft:     #f0fdf4;
 
+  --online:        #16a34a;
+  --online-soft:   #f0fdf4;
+
   --radius-sm:     8px;
   --radius-md:     12px;
   --radius-lg:     14px;
@@ -31,54 +34,38 @@
   --transition:    160ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-:root[data-tema="gelap"] {
-  --bg:            #0d1017;
-  --surface:       #161a22;
-  --surface-hover: #1a1f28;
+/* ============================================================
+   Design system — gelap
+   ============================================================ */
+[data-tema="gelap"] {
+  --bg:            #0b0d10;
+  --surface:       #14171c;
+  --surface-hover: #1a1e24;
 
-  --text:          #e8eaee;
-  --text-soft:     #9aa3b2;
-  --text-muted:    #667085;
+  --text:          #f1f3f6;
+  --text-soft:     #a1a8b3;
+  --text-muted:    #6b7280;
 
-  --border:        #232935;
-  --border-strong: #2e3543;
+  --border:        #23282f;
+  --border-strong: #333941;
 
-  --accent:        #3b82f6;
-  --accent-hover:  #60a5fa;
-  --accent-soft:   #1e2a44;
+  --accent:        #5b8cff;
+  --accent-hover:  #7ba0ff;
+  --accent-soft:   #1a2540;
 
-  --live:          #22c55e;
-  --live-soft:     #12271a;
+  --live:          #4ade80;
+  --live-soft:     #0f1f16;
+
+  --online:        #4ade80;
+  --online-soft:   #0f1f16;
 
   --shadow-card:   0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-hover:  0 2px 8px rgba(0, 0, 0, 0.5);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-tema="terang"]) {
-    --bg:            #0d1017;
-    --surface:       #161a22;
-    --surface-hover: #1a1f28;
-
-    --text:          #e8eaee;
-    --text-soft:     #9aa3b2;
-    --text-muted:    #667085;
-
-    --border:        #232935;
-    --border-strong: #2e3543;
-
-    --accent:        #3b82f6;
-    --accent-hover:  #60a5fa;
-    --accent-soft:   #1e2a44;
-
-    --live:          #22c55e;
-    --live-soft:     #12271a;
-
-    --shadow-card:   0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow-hover:  0 2px 8px rgba(0, 0, 0, 0.5);
-  }
-}
-
+/* ============================================================
+   Reset
+   ============================================================ */
 *,
 *::before,
 *::after {
@@ -87,7 +74,12 @@
   padding: 0;
 }
 
-html { -webkit-text-size-adjust: 100%; }
+html {
+  -webkit-text-size-adjust: 100%;
+  color-scheme: light;
+}
+
+[data-tema="gelap"] { color-scheme: dark; }
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
@@ -99,6 +91,7 @@ body {
   padding: 0 28px 56px;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  transition: background var(--transition), color var(--transition);
 }
 
 a { color: inherit; }
@@ -116,21 +109,12 @@ a { color: inherit; }
   position: sticky;
   top: 0;
   z-index: 10;
-  background: rgba(247, 248, 250, 0.85);
+  background: color-mix(in srgb, var(--bg) 85%, transparent);
   backdrop-filter: saturate(160%) blur(12px);
   -webkit-backdrop-filter: saturate(160%) blur(12px);
   margin: 0 -28px;
   padding: 0 28px;
-}
-
-:root[data-tema="gelap"] .site-header {
-  background: rgba(13, 16, 23, 0.85);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-tema="terang"]) .site-header {
-    background: rgba(13, 16, 23, 0.85);
-  }
+  transition: background var(--transition);
 }
 
 .site-header-inner {
@@ -186,8 +170,7 @@ a { color: inherit; }
 .header-right {
   display: flex;
   align-items: center;
-  gap: 12px;
-  flex-shrink: 0;
+  gap: 16px;
 }
 
 .identity {
@@ -195,6 +178,7 @@ a { color: inherit; }
   font-size: 0.8rem;
   color: var(--text-soft);
   line-height: 1.4;
+  flex-shrink: 0;
 }
 
 .identity-top {
@@ -211,24 +195,23 @@ a { color: inherit; }
   color: var(--text-muted);
 }
 
+/* Tombol toggle tema */
 .theme-toggle {
-  width: 32px;
-  height: 32px;
-  border-radius: 999px;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text-soft);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   cursor: pointer;
-  padding: 0;
+  display: grid;
+  place-items: center;
   flex-shrink: 0;
-  transition: background var(--transition), border-color var(--transition), color var(--transition);
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
 }
 
 .theme-toggle:hover {
-  border-color: var(--border-strong);
+  background: var(--surface-hover);
   color: var(--text);
 }
 
@@ -241,8 +224,8 @@ a { color: inherit; }
 .theme-toggle .icon-sun { display: none; }
 .theme-toggle .icon-moon { display: block; }
 
-.theme-toggle.tema-gelap .icon-sun { display: block; }
-.theme-toggle.tema-gelap .icon-moon { display: none; }
+[data-tema="gelap"] .theme-toggle .icon-sun { display: block; }
+[data-tema="gelap"] .theme-toggle .icon-moon { display: none; }
 
 /* ============================================================
    Layout
@@ -282,6 +265,7 @@ main {
   color: var(--text-soft);
   margin-bottom: 12px;
 }
+
 /* ============================================================
    Kartu "Kuliah berikutnya"
    ============================================================ */
@@ -291,7 +275,7 @@ main {
   border-radius: var(--radius-xl);
   padding: 20px 22px;
   box-shadow: var(--shadow-card);
-  transition: box-shadow var(--transition), border-color var(--transition);
+  transition: box-shadow var(--transition), border-color var(--transition), background var(--transition);
 }
 
 .next-card:hover {
@@ -320,38 +304,31 @@ main {
   flex-wrap: wrap;
   align-items: baseline;
   gap: 4px 10px;
+  margin-bottom: 14px;
 }
 
 .next-detail .meta-sep {
   color: var(--text-muted);
 }
 
+.next-action {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .next-countdown {
-  font-size: 0.78rem;
-  color: var(--text-soft);
-  margin-top: 10px;
+  margin-top: 12px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
 
 .next-berlangsung {
-  border-color: #c6efd4;
-}
-
-:root[data-tema="gelap"] .next-berlangsung {
-  border-color: #1f4d2f;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-tema="terang"]) .next-berlangsung {
-    border-color: #1f4d2f;
-  }
+  border-color: color-mix(in srgb, var(--live) 40%, var(--border));
 }
 
 .next-berlangsung .next-label {
-  color: var(--live);
-}
-
-.next-berlangsung .next-countdown {
   color: var(--live);
 }
 
@@ -360,36 +337,6 @@ main {
   font-size: 0.88rem;
   text-align: center;
   padding: 32px 24px;
-}
-
-.progress {
-  height: 4px;
-  background: var(--border);
-  border-radius: 999px;
-  margin-top: 14px;
-  overflow: hidden;
-}
-
-.progress-fill {
-  height: 100%;
-  width: 0%;
-  background: var(--live);
-  border-radius: 999px;
-  transition: width 1s linear;
-}
-
-/* ============================================================
-   Badge online
-   ============================================================ */
-.badge-online {
-  display: inline-block;
-  font-size: 0.7rem;
-  font-weight: 500;
-  color: var(--accent);
-  background: var(--accent-soft);
-  padding: 1px 7px;
-  border-radius: 999px;
-  line-height: 1.5;
 }
 
 /* ============================================================
@@ -402,74 +349,45 @@ main {
   padding: 0 20px;
   margin-bottom: 8px;
   box-shadow: var(--shadow-card);
-  transition: box-shadow var(--transition), border-color var(--transition);
-  position: relative;
-  overflow: hidden;
+  transition: box-shadow var(--transition), border-color var(--transition), background var(--transition);
 }
 
 .hari:hover {
   box-shadow: var(--shadow-hover);
 }
 
-.hari::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: transparent;
-  transition: background var(--transition);
-}
-
-.hari-ini::before {
-  background: var(--accent);
-}
-
-.hari-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px 0 4px;
-}
-
 .hari h3 {
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--text);
+  padding: 14px 0 4px;
   display: flex;
   align-items: baseline;
   gap: 8px;
 }
 
-.hari-ringkasan {
-  font-size: 0.72rem;
-  font-weight: 400;
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.hari-ini {
-  border-color: #d5e2ff;
-}
-
-:root[data-tema="gelap"] .hari-ini {
-  border-color: #1e3a6b;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-tema="terang"]) .hari-ini {
-    border-color: #1e3a6b;
-  }
-}
-
+/* Label "hari ini" muncul setelah nama hari, sebelum ringkasan. */
 .hari-ini h3::after {
   content: "hari ini";
   font-size: 0.72rem;
   font-weight: 400;
   color: var(--accent);
+}
+
+.hari-ini h3 {
+  color: var(--accent);
+}
+
+/* Ringkasan MK · SKS di kanan */
+.hari-ringkas {
+  margin-left: auto;
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.hari-ini {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
 }
 
 /* ============================================================
@@ -482,7 +400,6 @@ main {
   gap: 16px;
   padding: 10px 0;
   border-top: 1px solid var(--border);
-  position: relative;
 }
 
 .mk:last-child {
@@ -518,12 +435,25 @@ main {
   color: var(--text-soft);
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   gap: 3px 8px;
 }
 
 .mk .detail .meta-sep {
   color: var(--text-muted);
+}
+
+/* Badge "MK Online" */
+.badge-online {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--online);
+  background: var(--online-soft);
+  padding: 1px 7px;
+  border-radius: 999px;
+  line-height: 1.5;
 }
 
 .mk-action {
@@ -549,17 +479,6 @@ main {
 .mk-lewat .mk-jam {
   color: var(--text-muted);
   font-weight: 400;
-}
-
-.mk-berikutnya::before {
-  content: "";
-  position: absolute;
-  left: -20px;
-  top: 8px;
-  bottom: 8px;
-  width: 3px;
-  background: var(--accent);
-  border-radius: 0 3px 3px 0;
 }
 
 /* ============================================================
@@ -612,32 +531,6 @@ main {
 
 .btn.disabled::after { display: none; }
 
-/* Tombol ekspor .ics di footer */
-.btn-ekspor {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 12px;
-  background: transparent;
-  color: var(--text-soft);
-  border: 1px solid var(--border-strong);
-  padding: 6px 14px;
-  border-radius: var(--radius-md);
-  font-size: 0.76rem;
-  font-weight: 500;
-  letter-spacing: -0.005em;
-  cursor: pointer;
-  transition: background var(--transition), border-color var(--transition), color var(--transition);
-}
-
-.btn-ekspor:hover {
-  background: var(--surface);
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.btn-ekspor:active { transform: translateY(1px); }
-
 /* ============================================================
    Footer
    ============================================================ */
@@ -664,17 +557,11 @@ main {
     gap: 12px;
   }
 
-  .identity { font-size: 0.74rem; }
-
-  .theme-toggle {
-    width: 30px;
-    height: 30px;
+  .header-right {
+    gap: 10px;
   }
 
-  .theme-toggle svg {
-    width: 14px;
-    height: 14px;
-  }
+  .identity { text-align: right; }
 
   .hero-time { font-size: 1.25rem; }
 
@@ -697,10 +584,6 @@ main {
   .mk-action {
     justify-self: start;
     margin-top: 4px;
-  }
-
-  .mk-berikutnya::before {
-    left: -16px;
   }
 
   .next-nama { font-size: 1.05rem; }

@@ -10,10 +10,15 @@
     (function () {
       try {
         var tema = localStorage.getItem("tema");
-        if (tema === "gelap" || tema === "terang") {
-          document.documentElement.dataset.tema = tema;
+        if (tema !== "gelap" && tema !== "terang") {
+          tema = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
+            ? "gelap"
+            : "terang";
         }
-      } catch (e) {}
+        document.documentElement.dataset.tema = tema;
+      } catch (e) {
+        document.documentElement.dataset.tema = "terang";
+      }
     })();
   </script>
 </head>
@@ -76,7 +81,7 @@
     </section>
 
     <section class="section">
-      <h2 class="section-title" id="judul-kuliah">Kuliah berikutnya</h2>
+      <h2 class="section-title">Kuliah berikutnya</h2>
       <div id="kuliah-berikutnya"></div>
     </section>
 
