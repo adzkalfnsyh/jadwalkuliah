@@ -7,7 +7,9 @@ const namaBulan = [
 
 const state = {
   kunciKartu: null,
-  timerPerubahan: null
+  timerPerubahan: null,
+  timerRealtime: null,
+  hasilSekarang: null
 };
 
 // ---------- Utilitas ----------
@@ -36,6 +38,25 @@ function pad(n) {
   return String(n).padStart(2, "0");
 }
 
+// Escape HTML untuk mencegah XSS jika data nanti dari sumber eksternal.
+function escapeHtml(str) {
+  if (str == null) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// Escape untuk nilai atribut href — hanya izinkan http(s).
+function escapeHref(url) {
+  if (!url) return "";
+  const s = String(url).trim();
+  if (!/^https?:\/\//i.test(s)) return "";
+  return s.replace(/"/g, "%22");
+}
+
 // ---------- Tema ----------
 
 function terapkanTema(tema) {
@@ -58,19 +79,24 @@ function inisialisasiTema() {
 
 function renderJam() {
   const d = new Date();
-  document.getElementById("jam-sekarang").textContent =
+  const el = document.getElementById("jam-sekarang");
+  if (!el) return;
+  el.textContent =
     `${namaHari[d.getDay()]}, ${d.getDate()} ${namaBulan[d.getMonth()]} · ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
 // ---------- Header ----------
 
 function renderHeader() {
-  document.getElementById("info-nama").textContent = mahasiswa.nama;
-  document.getElementById("info-nim").textContent = mahasiswa.nim;
-  document.getElementById("info-kelas").textContent = mahasiswa.kelas;
-  document.getElementById("info-prodi").textContent = mahasiswa.prodi;
-  const el = document.getElementById("info-semester");
-  if (el) el.textContent = semester.label;
+  const set = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val ?? "";
+  };
+  set("info-nama", mahasiswa.nama);
+  set("info-nim", mahasiswa.nim);
+  set("info-kelas", mahasiswa.kelas);
+  set("info-prodi", mahasiswa.prodi);
+  set("info-semester", semester.label);
 }
 
 // ---------- Hitungan mundur ----------
@@ -115,11 +141,12 @@ function formatDurasi(ms) {
   return bagian.join(" ");
 }
 
-function renderHitungMundur() {
+// Update countdown di kartu yang sudah ada (dipanggil tiap detik).
+function perbaruiHitungMundur() {
   const el = document.getElementById("hitung-mundur");
   if (!el) return;
 
-  const hasil = cariKuliahSekarang();
+  const hasil = state.hasilSekarang;
   const target = targetWaktuKuliah(hasil);
   if (!target) {
     el.textContent = "";
@@ -146,7 +173,10 @@ function cariKuliahSekarang() {
 
   for (let i = mulai; i < urutanHari.length; i++) {
     const hari = urutanHari[i];
-    const daftarHariIni = mataKuliah.filter(mk => mk.hari === hari);
+    const daftarHariIni = mataKuliah
+      .filter(mk => mk.hari === hari)
+      .sort((a, b) => jamKeMenit(a.jam.split("-")[0]) - jamKeMenit(b.jam.split("-")[0]));
+
     if (daftarHariIni.length === 0) continue;
 
     for (const mk of daftarHariIni) {
@@ -178,6 +208,7 @@ function cariKuliahSekarang() {
 
 function labelKartu(status, hariMk) {
   if (status === "berlangsung") return "Sedang berlangsung";
+  if (status === "minggu-depan") return "Minggu depan";
 
   const selisih = selisihHariKe(hariMk);
   if (selisih === 0) return "Hari ini";
@@ -192,51 +223,57 @@ function kunciKartu(hasil) {
 
 function renderKuliahBerikutnya() {
   const container = document.getElementById("kuliah-berikutnya");
+  if (!container) return;
+
   const hasil = cariKuliahSekarang();
   const kunci = kunciKartu(hasil);
 
-  if (kunci === state.kunciKartu) return;
-  state.kunciKartu = kunci;
+  // Simpan hasil terbaru agar countdown selalu sinkron walau kartu tidak di-render ulang.
+  state.hasilSekarang = hasil;
 
-  if (!hasil) {
-    container.innerHTML = `
-      <div class="next-card next-kosong">
-        Belum ada data mata kuliah.
-      </div>
-    `;
-    return;
+  if (kunci !== state.kunciKartu) {
+    state.kunciKartu = kunci;
+
+    if (!hasil) {
+      container.innerHTML = `
+        <div class="next-card next-kosong">
+          Belum ada data mata kuliah.
+        </div>
+      `;
+    } else {
+      const { mk, status } = hasil;
+      const label = labelKartu(status, mk.hari);
+      const kelas = status === "berlangsung" ? "next-berlangsung" : "";
+      const [jamMulai, jamSelesai] = mk.jam.split("-");
+      const href = escapeHref(mk.materi);
+
+      container.innerHTML = `
+        <div class="next-card ${kelas}">
+          <div class="next-label">${escapeHtml(label)}</div>
+          <div class="next-nama">${escapeHtml(mk.nama)}</div>
+          <div class="next-detail">
+            <span>${escapeHtml(mk.hari)}</span>
+            <span class="meta-sep">·</span>
+            <span>${escapeHtml(jamMulai)} – ${escapeHtml(jamSelesai)}</span>
+            <span class="meta-sep">·</span>
+            <span>Ruang ${escapeHtml(mk.ruang)}</span>
+            <span class="meta-sep">·</span>
+            <span>${escapeHtml(mk.sks)} SKS</span>
+            <span class="meta-sep">·</span>
+            <span>Kode dosen: ${escapeHtml(mk.dosen)}</span>
+          </div>
+          <div class="next-action">
+            ${href
+              ? `<a class="btn" href="${href}" target="_blank" rel="noopener">Buka materi</a>`
+              : `<span class="btn disabled">Belum ada</span>`}
+          </div>
+          <div class="next-countdown" id="hitung-mundur"></div>
+        </div>
+      `;
+    }
   }
 
-  const { mk, status } = hasil;
-  const label = labelKartu(status, mk.hari);
-  const kelas = status === "berlangsung" ? "next-berlangsung" : "";
-  const [jamMulai, jamSelesai] = mk.jam.split("-");
-
-  container.innerHTML = `
-    <div class="next-card ${kelas}">
-      <div class="next-label">${label}</div>
-      <div class="next-nama">${mk.nama}</div>
-      <div class="next-detail">
-        <span>${mk.hari}</span>
-        <span class="meta-sep">·</span>
-        <span>${jamMulai} – ${jamSelesai}</span>
-        <span class="meta-sep">·</span>
-        <span>Ruang ${mk.ruang}</span>
-        <span class="meta-sep">·</span>
-        <span>${mk.sks} SKS</span>
-        <span class="meta-sep">·</span>
-        <span>Kode dosen: ${mk.dosen}</span>
-      </div>
-      <div class="next-action">
-        ${mk.materi
-          ? `<a class="btn" href="${mk.materi}" target="_blank" rel="noopener">Buka materi</a>`
-          : `<span class="btn disabled">Belum ada</span>`}
-      </div>
-      <div class="next-countdown" id="hitung-mundur"></div>
-    </div>
-  `;
-
-  renderHitungMundur();
+  perbaruiHitungMundur();
 }
 
 // ---------- Jadwal mingguan ----------
@@ -249,10 +286,14 @@ function ringkasanHari(daftar) {
 
 function renderJadwal() {
   const container = document.getElementById("daftar-hari");
+  if (!container) return;
   container.innerHTML = "";
 
   urutanHari.forEach(hari => {
-    const daftar = mataKuliah.filter(mk => mk.hari === hari);
+    const daftar = mataKuliah
+      .filter(mk => mk.hari === hari)
+      .sort((a, b) => jamKeMenit(a.jam.split("-")[0]) - jamKeMenit(b.jam.split("-")[0]));
+
     if (daftar.length === 0) return;
 
     const div = document.createElement("div");
@@ -277,27 +318,29 @@ function renderJadwal() {
       item.dataset.jam = mk.jam;
 
       const detail = [];
-      detail.push(`<span>${mk.ruang}</span>`);
+      detail.push(`<span>${escapeHtml(mk.ruang)}</span>`);
       if (mk.online) {
         detail.push(`<span class="badge-online">MK Online</span>`);
       }
       detail.push(`<span class="meta-sep">·</span>`);
-      detail.push(`<span>Kode dosen: ${mk.dosen}</span>`);
+      detail.push(`<span>Kode dosen: ${escapeHtml(mk.dosen)}</span>`);
       detail.push(`<span class="meta-sep">·</span>`);
-      detail.push(`<span>${mk.sks} SKS</span>`);
+      detail.push(`<span>${escapeHtml(mk.sks)} SKS</span>`);
+
+      const href = escapeHref(mk.materi);
 
       item.innerHTML = `
         <div class="mk-jam">
-          ${jamMulai}
-          <span class="mk-jam-selesai">– ${jamSelesai}</span>
+          ${escapeHtml(jamMulai)}
+          <span class="mk-jam-selesai">– ${escapeHtml(jamSelesai)}</span>
         </div>
         <div class="mk-info">
-          <div class="nama">${mk.nama}</div>
+          <div class="nama">${escapeHtml(mk.nama)}</div>
           <div class="detail">${detail.join(" ")}</div>
         </div>
         <div class="mk-action">
-          ${mk.materi
-            ? `<a class="btn" href="${mk.materi}" target="_blank" rel="noopener">Buka materi</a>`
+          ${href
+            ? `<a class="btn" href="${href}" target="_blank" rel="noopener">Buka materi</a>`
             : `<span class="btn disabled">Belum ada</span>`}
         </div>
       `;
@@ -391,6 +434,30 @@ function jadwalkanPerubahanBerikutnya() {
   }, delay);
 }
 
+// ---------- Loop realtime (digabung: jam + countdown) ----------
+
+function tickRealtime() {
+  renderJam();
+  perbaruiHitungMundur();
+}
+
+function mulaiLoopRealtime() {
+  if (state.timerRealtime) clearInterval(state.timerRealtime);
+  tickRealtime();
+  state.timerRealtime = setInterval(tickRealtime, 1000);
+}
+
+function hentikanLoopRealtime() {
+  if (state.timerRealtime) {
+    clearInterval(state.timerRealtime);
+    state.timerRealtime = null;
+  }
+  if (state.timerPerubahan) {
+    clearTimeout(state.timerPerubahan);
+    state.timerPerubahan = null;
+  }
+}
+
 // ---------- Inisialisasi ----------
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -398,18 +465,18 @@ document.addEventListener("DOMContentLoaded", () => {
   renderHeader();
   renderJadwal();
   perbarui();
-  renderJam();
+  mulaiLoopRealtime();
   jadwalkanPerubahanBerikutnya();
-
-  setInterval(renderJam, 1000);
-  setInterval(renderHitungMundur, 1000);
 });
 
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden) {
+  if (document.hidden) {
+    hentikanLoopRealtime();
+  } else {
     perbarui();
-    renderJam();
-    renderHitungMundur();
+    mulaiLoopRealtime();
     jadwalkanPerubahanBerikutnya();
   }
 });
+
+window.addEventListener("pagehide", hentikanLoopRealtime);
