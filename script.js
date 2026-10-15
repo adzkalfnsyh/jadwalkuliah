@@ -63,6 +63,7 @@ function escapeHref(url) {
 }
 
 function formatDurasiSingkat(ms) {
+  if (typeof ms !== "number" || !isFinite(ms)) return "sekarang";
   if (ms <= 0) return "sekarang";
   const totalMenit = Math.floor(ms / 60000);
   const hari = Math.floor(totalMenit / 1440);
@@ -79,6 +80,7 @@ function formatDurasiSingkat(ms) {
 }
 
 function formatDurasi(ms) {
+  if (typeof ms !== "number" || !isFinite(ms)) return "sekarang";
   if (ms <= 0) return "sekarang";
   const totalDetik = Math.floor(ms / 1000);
   const hari = Math.floor(totalDetik / 86400);
@@ -133,24 +135,88 @@ async function registrasiServiceWorker() {
   }
 }
 
+function sudahTerinstall() {
+  // Deteksi: PWA berjalan di mode standalone (jendela sendiri)
+  try {
+    if (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) return true;
+    if (window.navigator.standalone === true) return true;
+  } catch (e) {}
+  return false;
+}
+
 function inisialisasiInstall() {
   const btn = document.getElementById("install-btn");
   if (!btn) return;
+
+  // Kalau sudah install, sembunyikan tombol
+  if (sudahTerinstall()) {
+    btn.hidden = true;
+    return;
+  }
+
+  // Kalau browser tidak dukung install prompt, tetap tampilkan tombol
+  // dengan mode panduan manual
+  const dukungPrompt = "onbeforeinstallprompt" in window;
 
   window.addEventListener("beforeinstallprompt", (e) => {
     e.preventDefault();
     state.installPrompt = e;
     btn.hidden = false;
+    btn.dataset.mode = "prompt";
+    btn.title = "Install aplikasi";
+    btn.setAttribute("aria-label", "Install aplikasi");
   });
 
+  // Fallback: kalau 2 detik tidak ada event, tetap tampilkan tombol
+  // dengan mode panduan manual
+  setTimeout(() => {
+    if (btn.hidden && !state.installPrompt && !sudahTerinstall()) {
+      btn.hidden = false;
+      btn.dataset.mode = "manual";
+      btn.title = "Cara install ke perangkat";
+      btn.setAttribute("aria-label", "Cara install ke perangkat");
+    }
+  }, 2000);
+
   btn.addEventListener("click", async () => {
-    if (!state.installPrompt) return;
-    btn.hidden = true;
-    state.installPrompt.prompt();
-    try {
-      await state.installPrompt.userChoice;
-    } catch (e) {}
-    state.installPrompt = null;
+    // Mode prompt: pakai native install
+    if (state.installPrompt) {
+      state.installPrompt.prompt();
+      try {
+        const hasil = await state.installPrompt.userChoice;
+        if (hasil && hasil.outcome === "accepted") {
+          btn.hidden = true;
+        }
+      } catch (e) {}
+      state.installPrompt = null;
+      return;
+    }
+
+    // Mode manual: kasih panduan sesuai browser
+    const ua = navigator.userAgent;
+    const isEdge = /Edg\//.test(ua);
+    const isChrome = /Chrome\//.test(ua) && !isEdge;
+    const isSafari = /Safari\//.test(ua) && !/Chrome\//.test(ua);
+    const isAndroid = /Android/.test(ua);
+    const isIOS = /iPhone|iPad|iPod/.test(ua);
+
+    let pesan = "";
+
+    if (isAndroid && isChrome) {
+      pesan = "Buka menu ⋮ Chrome → pilih \"Install app\" atau \"Add to Home screen\".";
+    } else if (isIOS) {
+      pesan = "Buka tombol Share (kotak + panah) di Safari → pilih \"Add to Home Screen\".";
+    } else if (isEdge) {
+      pesan = "Buka menu ⋯ Edge (kanan atas) → Apps → \"Install this site as an app\".";
+    } else if (isChrome) {
+      pesan = "Buka menu ⋮ Chrome (kanan atas) → \"Install page as app\" atau klik ikon ⊕ di address bar.";
+    } else if (isSafari) {
+      pesan = "Buka menu File → \"Add to Dock\" atau tombol Share → \"Add to Home Screen\".";
+    } else {
+      pesan = "Buka menu browser → cari opsi \"Install app\" atau \"Add to Home Screen\".";
+    }
+
+    alert("Cara install ke perangkat:\n\n" + pesan);
   });
 
   window.addEventListener("appinstalled", () => {
@@ -343,20 +409,26 @@ function cekNotifikasi() {
 }
 
 function kirimNotifikasi({ title, body, tag }) {
+  // Prioritas 1: via service worker (jalan walau halaman tidak fokus)
   if (state.swRegistration && state.swRegistration.active) {
-    state.swRegistration.active.postMessage({
-      type: "TAMPILKAN_NOTIFIKASI",
-      payload: {
-        title,
-        body,
-        tag,
-        icon: "./icon-192.png",
-        badge: "./icon-192.png"
-      }
-    });
-    return;
+    try {
+      state.swRegistration.active.postMessage({
+        type: "TAMPILKAN_NOTIFIKASI",
+        payload: {
+          title,
+          body,
+          tag,
+          icon: "./icon-192.png",
+          badge: "./icon-192.png"
+        }
+      });
+      return;
+    } catch (e) {
+      console.warn("[Notif] Gagal kirim via SW, coba fallback:", e);
+    }
   }
 
+  // Prioritas 2: Notification API langsung
   try {
     const n = new Notification(title, {
       body,
@@ -367,7 +439,9 @@ function kirimNotifikasi({ title, body, tag }) {
       window.focus();
       n.close();
     };
-  } catch (e) {}
+  } catch (e) {
+    console.warn("[Notif] Gagal tampilkan notifikasi:", e);
+  }
 }
 
 // ---------- Jam realtime ----------
@@ -746,10 +820,12 @@ function jadwalkanPerubahanBerikutnya() {
 // ---------- Loop realtime ----------
 
 function tickRealtime() {
-  renderJam();
-  perbaruiHitungMundur();
-  perbaruiStatusBaris();
-  cekNotifikasi();
+  // Setiap fungsi dibungkus try/catch agar satu error tidak mematikan
+  // seluruh loop realtime.
+  try { renderJam(); } catch (e) { console.warn("[Tick] renderJam:", e); }
+  try { perbaruiHitungMundur(); } catch (e) { console.warn("[Tick] perbaruiHitungMundur:", e); }
+  try { perbaruiStatusBaris(); } catch (e) { console.warn("[Tick] perbaruiStatusBaris:", e); }
+  try { cekNotifikasi(); } catch (e) { console.warn("[Tick] cekNotifikasi:", e); }
 }
 
 function mulaiLoopRealtime() {
