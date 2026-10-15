@@ -114,6 +114,7 @@ a { color: inherit; }
   -webkit-backdrop-filter: saturate(160%) blur(12px);
   margin: 0 -28px;
   padding: 0 28px;
+  padding-top: env(safe-area-inset-top, 0);
   transition: background var(--transition);
 }
 
@@ -196,7 +197,6 @@ a { color: inherit; }
   color: var(--text-muted);
 }
 
-/* Tombol header (tema + notifikasi) */
 .header-btn {
   width: 34px;
   height: 34px;
@@ -222,14 +222,12 @@ a { color: inherit; }
   display: block;
 }
 
-/* Ikon tema */
 .header-btn .icon-sun { display: none; }
 .header-btn .icon-moon { display: block; }
 
 [data-tema="gelap"] .header-btn .icon-sun { display: block; }
 [data-tema="gelap"] .header-btn .icon-moon { display: none; }
 
-/* Ikon notifikasi */
 #notif-toggle .icon-bell-on { display: none; }
 #notif-toggle .icon-bell-off { display: block; }
 
@@ -252,7 +250,7 @@ main {
 }
 
 /* ============================================================
-   Hero — jam
+   Hero — jam + status offline
    ============================================================ */
 .hero {
   margin-bottom: 32px;
@@ -265,6 +263,18 @@ main {
   line-height: 1.2;
   font-variant-numeric: tabular-nums;
   color: var(--text);
+}
+
+.hero-offline {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: var(--text-soft);
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border));
+  padding: 3px 10px;
+  border-radius: 999px;
 }
 
 /* ============================================================
@@ -429,7 +439,6 @@ main {
   gap: 8px;
 }
 
-/* Label "hari ini" muncul setelah nama hari, sebelum ringkasan. */
 .hari-ini h3::after {
   content: "hari ini";
   font-size: 0.72rem;
@@ -441,7 +450,6 @@ main {
   color: var(--accent);
 }
 
-/* Ringkasan MK · SKS di kanan */
 .hari-ringkas {
   margin-left: auto;
   font-size: 0.72rem;
@@ -516,7 +524,6 @@ main {
   color: var(--text-muted);
 }
 
-/* Badge "MK Online" */
 .badge-online {
   display: inline-block;
   font-size: 0.68rem;
@@ -533,7 +540,6 @@ main {
   flex-shrink: 0;
 }
 
-/* Baris berlangsung */
 .mk-berlangsung .mk-jam {
   color: var(--live);
 }
@@ -545,7 +551,6 @@ main {
   margin-left: 6px;
 }
 
-/* Span sisa waktu di baris berlangsung */
 .mk-sisa {
   display: inline;
   margin-left: 6px;
@@ -555,7 +560,6 @@ main {
   opacity: 0.85;
 }
 
-/* Baris lewat */
 .mk-lewat {
   color: var(--text-muted);
 }
@@ -566,7 +570,6 @@ main {
   font-weight: 400;
 }
 
-/* Filter "hari ini" */
 [data-filter="hari-ini"] .hari {
   display: none;
 }
@@ -651,6 +654,7 @@ main {
   text-align: center;
   font-size: 0.76rem;
   color: var(--text-muted);
+  padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
 /* ============================================================
@@ -659,7 +663,7 @@ main {
 @media (max-width: 680px) {
   body { padding: 0 18px 40px; }
 
-  .site-header { margin: 0 -18px; padding: 0 18px; }
+  .site-header { margin: 0 -18px; padding: 0 18px; padding-top: env(safe-area-inset-top, 0); }
 
   .site-header-inner {
     padding: 14px 0;

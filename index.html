@@ -2,10 +2,21 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Jadwal Kuliah Adzka</title>
+
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#2563eb" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0b0d10" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Jadwal Adzka">
+  <link rel="apple-touch-icon" href="icon-192.png">
+
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232563eb' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4.5' width='18' height='16.5' rx='2'/%3E%3Cpath d='M3 10h18'/%3E%3Cpath d='M8 2.5v4'/%3E%3Cpath d='M16 2.5v4'/%3E%3C/svg%3E">
+
   <link rel="stylesheet" href="style.css">
+
   <script>
     (function () {
       try {
@@ -17,7 +28,6 @@
         }
         document.documentElement.dataset.tema = tema;
 
-        // Terapkan preferensi filter sebelum render untuk hindari flicker.
         var filter = localStorage.getItem("filterJadwal");
         if (filter === "hari-ini" || filter === "semua") {
           document.documentElement.dataset.filter = filter;
@@ -70,6 +80,13 @@
             <span id="info-prodi"></span>
           </div>
         </div>
+        <button type="button" class="header-btn" id="install-btn" aria-label="Install aplikasi" title="Install ke perangkat" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+        </button>
         <button type="button" class="header-btn" id="notif-toggle" aria-label="Aktifkan notifikasi" title="Aktifkan notifikasi kuliah">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-bell-off">
             <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
@@ -106,6 +123,9 @@
   <main>
     <section class="hero">
       <div class="hero-time" id="jam-sekarang"></div>
+      <div class="hero-offline" id="info-offline" hidden>
+        Mode offline — jadwal tetap bisa dibuka
+      </div>
     </section>
 
     <section class="section">
@@ -123,7 +143,7 @@
       </div>
       <div id="daftar-hari"></div>
       <div id="jadwal-kosong" class="jadwal-kosong" hidden>
-        Tidak ada kuliah hari ini. 🎉
+        Tidak ada kuliah hari ini.
       </div>
     </section>
   </main>

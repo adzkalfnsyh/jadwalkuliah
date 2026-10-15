@@ -5,7 +5,6 @@ const namaBulan = [
   "Juli", "Agustus", "September", "Oktober", "November", "Desember"
 ];
 
-// Berapa menit sebelum MK mulai kita kirim notifikasi.
 const MENIT_REMINDER = 10;
 
 const state = {
@@ -13,9 +12,11 @@ const state = {
   timerPerubahan: null,
   timerRealtime: null,
   hasilSekarang: null,
-  filterJadwal: "semua",       // "semua" | "hari-ini"
+  filterJadwal: "semua",
   notifAktif: false,
-  notifTerkirim: new Set()     // set kode|tanggal untuk hindari spam
+  notifTerkirim: new Set(),
+  swRegistration: null,
+  installPrompt: null
 };
 
 // ---------- Utilitas ----------
@@ -61,7 +62,6 @@ function escapeHref(url) {
   return s.replace(/"/g, "%22");
 }
 
-// Format durasi pendek: "45 menit", "1 jam 20 menit", "3 hari 2 jam"
 function formatDurasiSingkat(ms) {
   if (ms <= 0) return "sekarang";
   const totalMenit = Math.floor(ms / 60000);
@@ -76,6 +76,99 @@ function formatDurasiSingkat(ms) {
   if (bagian.length === 0) bagian.push("kurang dari 1 menit");
 
   return bagian.slice(0, 2).join(" ");
+}
+
+function formatDurasi(ms) {
+  if (ms <= 0) return "sekarang";
+  const totalDetik = Math.floor(ms / 1000);
+  const hari = Math.floor(totalDetik / 86400);
+  const jam = Math.floor((totalDetik % 86400) / 3600);
+  const menit = Math.floor((totalDetik % 3600) / 60);
+  const detik = totalDetik % 60;
+
+  const bagian = [];
+  if (hari > 0) bagian.push(`${hari} hari`);
+  if (jam > 0 || hari > 0) bagian.push(`${jam} jam`);
+  if (menit > 0 || jam > 0 || hari > 0) bagian.push(`${menit} menit`);
+  bagian.push(`${detik} detik`);
+
+  return bagian.join(" ");
+}
+
+// ---------- PWA: Service Worker + Install ----------
+
+function swDidukung() {
+  return "serviceWorker" in navigator;
+}
+
+async function registrasiServiceWorker() {
+  if (!swDidukung()) return;
+
+  if (location.protocol === "file:") {
+    console.info("[PWA] Service worker tidak jalan di file://. Jalankan via http(s) / localhost.");
+    return;
+  }
+
+  try {
+    const reg = await navigator.serviceWorker.register("./service-worker.js", {
+      scope: "./"
+    });
+    state.swRegistration = reg;
+
+    setInterval(() => reg.update().catch(() => {}), 30 * 60 * 1000);
+
+    reg.addEventListener("updatefound", () => {
+      const baru = reg.installing;
+      if (!baru) return;
+      baru.addEventListener("statechange", () => {
+        if (baru.state === "installed" && navigator.serviceWorker.controller) {
+          if (reg.waiting) {
+            reg.waiting.postMessage({ type: "SKIP_WAITING" });
+          }
+        }
+      });
+    });
+  } catch (e) {
+    console.warn("[PWA] Registrasi service worker gagal:", e);
+  }
+}
+
+function inisialisasiInstall() {
+  const btn = document.getElementById("install-btn");
+  if (!btn) return;
+
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    state.installPrompt = e;
+    btn.hidden = false;
+  });
+
+  btn.addEventListener("click", async () => {
+    if (!state.installPrompt) return;
+    btn.hidden = true;
+    state.installPrompt.prompt();
+    try {
+      await state.installPrompt.userChoice;
+    } catch (e) {}
+    state.installPrompt = null;
+  });
+
+  window.addEventListener("appinstalled", () => {
+    state.installPrompt = null;
+    btn.hidden = true;
+  });
+}
+
+function perbaruiStatusOffline() {
+  const el = document.getElementById("info-offline");
+  if (!el) return;
+  el.hidden = navigator.onLine;
+}
+
+function inisialisasiOfflineIndicator() {
+  perbaruiStatusOffline();
+  window.addEventListener("online", perbaruiStatusOffline);
+  window.addEventListener("offline", perbaruiStatusOffline);
 }
 
 // ---------- Tema ----------
@@ -169,13 +262,11 @@ function simpanNotifAktif(aktif) {
 async function toggleNotif() {
   if (!notifDidukung()) return;
 
-  // Kalau sedang aktif → matikan
   if (state.notifAktif && Notification.permission === "granted") {
     simpanNotifAktif(false);
     return;
   }
 
-  // Kalau izin belum diberikan → minta
   if (Notification.permission === "default") {
     try {
       const hasil = await Notification.requestPermission();
@@ -191,7 +282,7 @@ async function toggleNotif() {
 
   if (Notification.permission === "granted") {
     simpanNotifAktif(true);
-    cekNotifikasi(); // langsung cek barangkali ada yang harus diingatkan
+    cekNotifikasi();
   } else {
     simpanNotifAktif(false);
   }
@@ -206,13 +297,11 @@ function inisialisasiNotif() {
     return;
   }
 
-  // Baca preferensi tersimpan
   let aktif = false;
   try {
     aktif = localStorage.getItem("notifAktif") === "1";
   } catch (e) {}
 
-  // Kalau izin dicabut manual oleh user di browser, matikan otomatis
   if (aktif && Notification.permission !== "granted") {
     aktif = false;
   }
@@ -223,7 +312,6 @@ function inisialisasiNotif() {
   btn.addEventListener("click", toggleNotif);
 }
 
-// Kirim notifikasi kalau ada MK yang mulai dalam MENIT_REMINDER menit.
 function cekNotifikasi() {
   if (!state.notifAktif || !notifDidukung()) return;
   if (Notification.permission !== "granted") return;
@@ -240,32 +328,46 @@ function cekNotifikasi() {
     const mulai = jamKeMenit(jamMulai);
     const selisih = mulai - menitSekarangVal;
 
-    // Kirim kalau dalam rentang 0..MENIT_REMINDER menit ke depan
     if (selisih > 0 && selisih <= MENIT_REMINDER) {
       const kunci = `${tanggalKunci}|${mk.kode}|${jamMulai}`;
       if (state.notifTerkirim.has(kunci)) continue;
       state.notifTerkirim.add(kunci);
 
       const tempat = mk.online ? "Online" : `Ruang ${mk.ruang}`;
+      const title = "Kuliah 10 menit lagi";
       const body = `${mk.nama}\n${mk.jam} · ${tempat}\nKode dosen: ${mk.dosen}`;
 
-      try {
-        const n = new Notification("Kuliah 10 menit lagi", {
-          body,
-          tag: kunci,
-          icon: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232563eb' stroke-width='2'%3E%3Crect x='3' y='4.5' width='18' height='16.5' rx='2'/%3E%3Cpath d='M3 10h18'/%3E%3C/svg%3E",
-          badge: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232563eb' stroke-width='2'%3E%3Crect x='3' y='4.5' width='18' height='16.5' rx='2'/%3E%3C/svg%3E"
-        });
-        n.onclick = () => {
-          window.focus();
-          n.close();
-        };
-      } catch (e) {
-        // Beberapa browser lama butuh service worker untuk Notification.
-        // Diamkan saja — bukan error fatal.
-      }
+      kirimNotifikasi({ title, body, tag: kunci });
     }
   }
+}
+
+function kirimNotifikasi({ title, body, tag }) {
+  if (state.swRegistration && state.swRegistration.active) {
+    state.swRegistration.active.postMessage({
+      type: "TAMPILKAN_NOTIFIKASI",
+      payload: {
+        title,
+        body,
+        tag,
+        icon: "./icon-192.png",
+        badge: "./icon-192.png"
+      }
+    });
+    return;
+  }
+
+  try {
+    const n = new Notification(title, {
+      body,
+      tag,
+      icon: "./icon-192.png"
+    });
+    n.onclick = () => {
+      window.focus();
+      n.close();
+    };
+  } catch (e) {}
 }
 
 // ---------- Jam realtime ----------
@@ -315,23 +417,6 @@ function targetWaktuKuliah(hasil) {
   const [h, m] = jamMulai.split(":").map(Number);
   target.setHours(h, m, 0, 0);
   return target;
-}
-
-function formatDurasi(ms) {
-  if (ms <= 0) return "sekarang";
-  const totalDetik = Math.floor(ms / 1000);
-  const hari = Math.floor(totalDetik / 86400);
-  const jam = Math.floor((totalDetik % 86400) / 3600);
-  const menit = Math.floor((totalDetik % 3600) / 60);
-  const detik = totalDetik % 60;
-
-  const bagian = [];
-  if (hari > 0) bagian.push(`${hari} hari`);
-  if (jam > 0 || hari > 0) bagian.push(`${jam} jam`);
-  if (menit > 0 || jam > 0 || hari > 0) bagian.push(`${menit} menit`);
-  bagian.push(`${detik} detik`);
-
-  return bagian.join(" ");
 }
 
 function perbaruiHitungMundur() {
@@ -552,7 +637,6 @@ function renderJadwal() {
     container.appendChild(div);
   });
 
-  // Pesan kosong kalau filter "hari ini" aktif tapi tidak ada kuliah
   if (kosong) {
     kosong.hidden = !(filterAktif && jumlahDitampilkan === 0);
   }
@@ -575,7 +659,6 @@ function perbaruiStatusBaris() {
     const sedangBerlangsung = hariIniBaris && menit >= m1 && menit < m2;
     const sudahLewat = hariIniBaris && menit >= m2;
 
-    // Update sisa waktu tiap detik kalau sedang berlangsung
     let teksSisa = "";
     if (sedangBerlangsung) {
       const sisaMs = m2 * 60000 - (menit * 60000 + new Date().getSeconds() * 1000);
@@ -590,10 +673,8 @@ function perbaruiStatusBaris() {
     baris.classList.toggle("mk-berlangsung", sedangBerlangsung);
     baris.classList.toggle("mk-lewat", sudahLewat);
 
-    // Update label "berlangsung" di nama MK
     const namaEl = baris.querySelector(".nama");
     if (namaEl) {
-      // Hapus span sisa waktu lama kalau ada
       const lama = namaEl.querySelector(".mk-sisa");
       if (lama) lama.remove();
 
@@ -667,8 +748,8 @@ function jadwalkanPerubahanBerikutnya() {
 function tickRealtime() {
   renderJam();
   perbaruiHitungMundur();
-  perbaruiStatusBaris();  // update sisa waktu tiap detik
-  cekNotifikasi();        // cek apakah perlu kirim notifikasi
+  perbaruiStatusBaris();
+  cekNotifikasi();
 }
 
 function mulaiLoopRealtime() {
@@ -694,6 +775,9 @@ document.addEventListener("DOMContentLoaded", () => {
   inisialisasiTema();
   inisialisasiFilter();
   inisialisasiNotif();
+  inisialisasiInstall();
+  inisialisasiOfflineIndicator();
+  registrasiServiceWorker();
   renderHeader();
   renderJadwal();
   perbarui();
