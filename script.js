@@ -5,11 +5,17 @@ const namaBulan = [
   "Juli", "Agustus", "September", "Oktober", "November", "Desember"
 ];
 
+// Berapa menit sebelum MK mulai kita kirim notifikasi.
+const MENIT_REMINDER = 10;
+
 const state = {
   kunciKartu: null,
   timerPerubahan: null,
   timerRealtime: null,
-  hasilSekarang: null
+  hasilSekarang: null,
+  filterJadwal: "semua",       // "semua" | "hari-ini"
+  notifAktif: false,
+  notifTerkirim: new Set()     // set kode|tanggal untuk hindari spam
 };
 
 // ---------- Utilitas ----------
@@ -38,7 +44,6 @@ function pad(n) {
   return String(n).padStart(2, "0");
 }
 
-// Escape HTML untuk mencegah XSS jika data nanti dari sumber eksternal.
 function escapeHtml(str) {
   if (str == null) return "";
   return String(str)
@@ -49,12 +54,28 @@ function escapeHtml(str) {
     .replace(/'/g, "&#39;");
 }
 
-// Escape untuk nilai atribut href — hanya izinkan http(s).
 function escapeHref(url) {
   if (!url) return "";
   const s = String(url).trim();
   if (!/^https?:\/\//i.test(s)) return "";
   return s.replace(/"/g, "%22");
+}
+
+// Format durasi pendek: "45 menit", "1 jam 20 menit", "3 hari 2 jam"
+function formatDurasiSingkat(ms) {
+  if (ms <= 0) return "sekarang";
+  const totalMenit = Math.floor(ms / 60000);
+  const hari = Math.floor(totalMenit / 1440);
+  const jam = Math.floor((totalMenit % 1440) / 60);
+  const menit = totalMenit % 60;
+
+  const bagian = [];
+  if (hari > 0) bagian.push(`${hari} hari`);
+  if (jam > 0) bagian.push(`${jam} jam`);
+  if (menit > 0 && hari === 0) bagian.push(`${menit} menit`);
+  if (bagian.length === 0) bagian.push("kurang dari 1 menit");
+
+  return bagian.slice(0, 2).join(" ");
 }
 
 // ---------- Tema ----------
@@ -73,6 +94,178 @@ function inisialisasiTema() {
     const sekarang = document.documentElement.dataset.tema;
     terapkanTema(sekarang === "gelap" ? "terang" : "gelap");
   });
+}
+
+// ---------- Filter jadwal ----------
+
+function terapkanFilter(filter) {
+  state.filterJadwal = filter;
+  document.documentElement.dataset.filter = filter;
+  try {
+    localStorage.setItem("filterJadwal", filter);
+  } catch (e) {}
+  perbaruiFilterUI();
+  renderJadwal();
+  perbaruiHighlight();
+  perbaruiStatusBaris();
+}
+
+function perbaruiFilterUI() {
+  document.querySelectorAll(".filter-btn").forEach(btn => {
+    const aktif = btn.dataset.filter === state.filterJadwal;
+    btn.classList.toggle("aktif", aktif);
+    btn.setAttribute("aria-pressed", aktif ? "true" : "false");
+  });
+}
+
+function inisialisasiFilter() {
+  const saved = document.documentElement.dataset.filter;
+  state.filterJadwal = saved === "hari-ini" ? "hari-ini" : "semua";
+
+  document.querySelectorAll(".filter-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      terapkanFilter(btn.dataset.filter);
+    });
+  });
+
+  perbaruiFilterUI();
+}
+
+// ---------- Notifikasi ----------
+
+function notifDidukung() {
+  return typeof window !== "undefined" && "Notification" in window;
+}
+
+function perbaruiNotifUI() {
+  const btn = document.getElementById("notif-toggle");
+  if (!btn) return;
+
+  if (!notifDidukung()) {
+    btn.hidden = true;
+    return;
+  }
+
+  const izin = Notification.permission;
+  const aktif = state.notifAktif && izin === "granted";
+
+  btn.classList.toggle("notif-aktif", aktif);
+  btn.setAttribute("aria-pressed", aktif ? "true" : "false");
+  btn.setAttribute(
+    "aria-label",
+    aktif ? "Matikan notifikasi kuliah" : "Aktifkan notifikasi kuliah"
+  );
+  btn.title = aktif ? "Notifikasi aktif · klik untuk matikan" : "Klik untuk aktifkan notifikasi kuliah";
+}
+
+function simpanNotifAktif(aktif) {
+  state.notifAktif = aktif;
+  try {
+    localStorage.setItem("notifAktif", aktif ? "1" : "0");
+  } catch (e) {}
+  perbaruiNotifUI();
+}
+
+async function toggleNotif() {
+  if (!notifDidukung()) return;
+
+  // Kalau sedang aktif → matikan
+  if (state.notifAktif && Notification.permission === "granted") {
+    simpanNotifAktif(false);
+    return;
+  }
+
+  // Kalau izin belum diberikan → minta
+  if (Notification.permission === "default") {
+    try {
+      const hasil = await Notification.requestPermission();
+      if (hasil !== "granted") {
+        simpanNotifAktif(false);
+        return;
+      }
+    } catch (e) {
+      simpanNotifAktif(false);
+      return;
+    }
+  }
+
+  if (Notification.permission === "granted") {
+    simpanNotifAktif(true);
+    cekNotifikasi(); // langsung cek barangkali ada yang harus diingatkan
+  } else {
+    simpanNotifAktif(false);
+  }
+}
+
+function inisialisasiNotif() {
+  const btn = document.getElementById("notif-toggle");
+  if (!btn) return;
+
+  if (!notifDidukung()) {
+    btn.hidden = true;
+    return;
+  }
+
+  // Baca preferensi tersimpan
+  let aktif = false;
+  try {
+    aktif = localStorage.getItem("notifAktif") === "1";
+  } catch (e) {}
+
+  // Kalau izin dicabut manual oleh user di browser, matikan otomatis
+  if (aktif && Notification.permission !== "granted") {
+    aktif = false;
+  }
+
+  state.notifAktif = aktif;
+  perbaruiNotifUI();
+
+  btn.addEventListener("click", toggleNotif);
+}
+
+// Kirim notifikasi kalau ada MK yang mulai dalam MENIT_REMINDER menit.
+function cekNotifikasi() {
+  if (!state.notifAktif || !notifDidukung()) return;
+  if (Notification.permission !== "granted") return;
+
+  const d = new Date();
+  const tanggalKunci = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const menitSekarangVal = menitSekarang();
+  const hariSekarang = hariIni();
+
+  for (const mk of mataKuliah) {
+    if (mk.hari !== hariSekarang) continue;
+
+    const [jamMulai] = mk.jam.split("-");
+    const mulai = jamKeMenit(jamMulai);
+    const selisih = mulai - menitSekarangVal;
+
+    // Kirim kalau dalam rentang 0..MENIT_REMINDER menit ke depan
+    if (selisih > 0 && selisih <= MENIT_REMINDER) {
+      const kunci = `${tanggalKunci}|${mk.kode}|${jamMulai}`;
+      if (state.notifTerkirim.has(kunci)) continue;
+      state.notifTerkirim.add(kunci);
+
+      const tempat = mk.online ? "Online" : `Ruang ${mk.ruang}`;
+      const body = `${mk.nama}\n${mk.jam} · ${tempat}\nKode dosen: ${mk.dosen}`;
+
+      try {
+        const n = new Notification("Kuliah 10 menit lagi", {
+          body,
+          tag: kunci,
+          icon: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232563eb' stroke-width='2'%3E%3Crect x='3' y='4.5' width='18' height='16.5' rx='2'/%3E%3Cpath d='M3 10h18'/%3E%3C/svg%3E",
+          badge: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232563eb' stroke-width='2'%3E%3Crect x='3' y='4.5' width='18' height='16.5' rx='2'/%3E%3C/svg%3E"
+        });
+        n.onclick = () => {
+          window.focus();
+          n.close();
+        };
+      } catch (e) {
+        // Beberapa browser lama butuh service worker untuk Notification.
+        // Diamkan saja — bukan error fatal.
+      }
+    }
+  }
 }
 
 // ---------- Jam realtime ----------
@@ -141,7 +334,6 @@ function formatDurasi(ms) {
   return bagian.join(" ");
 }
 
-// Update countdown di kartu yang sudah ada (dipanggil tiap detik).
 function perbaruiHitungMundur() {
   const el = document.getElementById("hitung-mundur");
   if (!el) return;
@@ -228,7 +420,6 @@ function renderKuliahBerikutnya() {
   const hasil = cariKuliahSekarang();
   const kunci = kunciKartu(hasil);
 
-  // Simpan hasil terbaru agar countdown selalu sinkron walau kartu tidak di-render ulang.
   state.hasilSekarang = hasil;
 
   if (kunci !== state.kunciKartu) {
@@ -256,7 +447,7 @@ function renderKuliahBerikutnya() {
             <span class="meta-sep">·</span>
             <span>${escapeHtml(jamMulai)} – ${escapeHtml(jamSelesai)}</span>
             <span class="meta-sep">·</span>
-            <span>Ruang ${escapeHtml(mk.ruang)}</span>
+            <span>${escapeHtml(mk.online ? "Online" : "Ruang " + mk.ruang)}</span>
             <span class="meta-sep">·</span>
             <span>${escapeHtml(mk.sks)} SKS</span>
             <span class="meta-sep">·</span>
@@ -286,15 +477,25 @@ function ringkasanHari(daftar) {
 
 function renderJadwal() {
   const container = document.getElementById("daftar-hari");
+  const kosong = document.getElementById("jadwal-kosong");
   if (!container) return;
   container.innerHTML = "";
 
+  const hariSekarang = hariIni();
+  const filterAktif = state.filterJadwal === "hari-ini";
+
+  let jumlahDitampilkan = 0;
+
   urutanHari.forEach(hari => {
+    if (filterAktif && hari !== hariSekarang) return;
+
     const daftar = mataKuliah
       .filter(mk => mk.hari === hari)
       .sort((a, b) => jamKeMenit(a.jam.split("-")[0]) - jamKeMenit(b.jam.split("-")[0]));
 
     if (daftar.length === 0) return;
+
+    jumlahDitampilkan += daftar.length;
 
     const div = document.createElement("div");
     div.className = "hari";
@@ -316,9 +517,10 @@ function renderJadwal() {
       item.className = "mk";
       item.dataset.kode = mk.kode;
       item.dataset.jam = mk.jam;
+      item.dataset.hari = hari;
 
       const detail = [];
-      detail.push(`<span>${escapeHtml(mk.ruang)}</span>`);
+      detail.push(`<span>${escapeHtml(mk.online ? "Online" : mk.ruang)}</span>`);
       if (mk.online) {
         detail.push(`<span class="badge-online">MK Online</span>`);
       }
@@ -349,6 +551,11 @@ function renderJadwal() {
 
     container.appendChild(div);
   });
+
+  // Pesan kosong kalau filter "hari ini" aktif tapi tidak ada kuliah
+  if (kosong) {
+    kosong.hidden = !(filterAktif && jumlahDitampilkan === 0);
+  }
 }
 
 // ---------- Pembaruan realtime ----------
@@ -357,25 +564,46 @@ function perbaruiStatusBaris() {
   const hariSekarang = hariIni();
   const menit = menitSekarang();
 
-  document.querySelectorAll(".hari").forEach(blokHari => {
-    const hariBlok = blokHari.dataset.hari;
-    const hariIniBlok = hariBlok === hariSekarang;
+  document.querySelectorAll(".mk").forEach(baris => {
+    const hariBaris = baris.dataset.hari;
+    const hariIniBaris = hariBaris === hariSekarang;
 
-    blokHari.querySelectorAll(".mk").forEach(baris => {
-      const [jamMulai, jamSelesai] = baris.dataset.jam.split("-");
-      const m1 = jamKeMenit(jamMulai);
-      const m2 = jamKeMenit(jamSelesai);
+    const [jamMulai, jamSelesai] = baris.dataset.jam.split("-");
+    const m1 = jamKeMenit(jamMulai);
+    const m2 = jamKeMenit(jamSelesai);
 
-      const sedangBerlangsung = hariIniBlok && menit >= m1 && menit < m2;
-      const sudahLewat = hariIniBlok && menit >= m2;
-      const statusBaru = `${sedangBerlangsung}|${sudahLewat}`;
+    const sedangBerlangsung = hariIniBaris && menit >= m1 && menit < m2;
+    const sudahLewat = hariIniBaris && menit >= m2;
 
-      if (baris.dataset.status === statusBaru) return;
-      baris.dataset.status = statusBaru;
+    // Update sisa waktu tiap detik kalau sedang berlangsung
+    let teksSisa = "";
+    if (sedangBerlangsung) {
+      const sisaMs = m2 * 60000 - (menit * 60000 + new Date().getSeconds() * 1000);
+      teksSisa = ` · ${formatDurasiSingkat(sisaMs)} lagi`;
+    }
 
-      baris.classList.toggle("mk-berlangsung", sedangBerlangsung);
-      baris.classList.toggle("mk-lewat", sudahLewat);
-    });
+    const statusBaru = `${sedangBerlangsung}|${sudahLewat}|${teksSisa}`;
+
+    if (baris.dataset.status === statusBaru) return;
+    baris.dataset.status = statusBaru;
+
+    baris.classList.toggle("mk-berlangsung", sedangBerlangsung);
+    baris.classList.toggle("mk-lewat", sudahLewat);
+
+    // Update label "berlangsung" di nama MK
+    const namaEl = baris.querySelector(".nama");
+    if (namaEl) {
+      // Hapus span sisa waktu lama kalau ada
+      const lama = namaEl.querySelector(".mk-sisa");
+      if (lama) lama.remove();
+
+      if (sedangBerlangsung) {
+        const span = document.createElement("span");
+        span.className = "mk-sisa";
+        span.textContent = `· ${formatDurasiSingkat(m2 * 60000 - (menit * 60000 + new Date().getSeconds() * 1000))} lagi`;
+        namaEl.appendChild(span);
+      }
+    }
   });
 }
 
@@ -434,11 +662,13 @@ function jadwalkanPerubahanBerikutnya() {
   }, delay);
 }
 
-// ---------- Loop realtime (digabung: jam + countdown) ----------
+// ---------- Loop realtime ----------
 
 function tickRealtime() {
   renderJam();
   perbaruiHitungMundur();
+  perbaruiStatusBaris();  // update sisa waktu tiap detik
+  cekNotifikasi();        // cek apakah perlu kirim notifikasi
 }
 
 function mulaiLoopRealtime() {
@@ -462,6 +692,8 @@ function hentikanLoopRealtime() {
 
 document.addEventListener("DOMContentLoaded", () => {
   inisialisasiTema();
+  inisialisasiFilter();
+  inisialisasiNotif();
   renderHeader();
   renderJadwal();
   perbarui();

@@ -16,8 +16,17 @@
             : "terang";
         }
         document.documentElement.dataset.tema = tema;
+
+        // Terapkan preferensi filter sebelum render untuk hindari flicker.
+        var filter = localStorage.getItem("filterJadwal");
+        if (filter === "hari-ini" || filter === "semua") {
+          document.documentElement.dataset.filter = filter;
+        } else {
+          document.documentElement.dataset.filter = "semua";
+        }
       } catch (e) {
         document.documentElement.dataset.tema = "terang";
+        document.documentElement.dataset.filter = "semua";
       }
     })();
   </script>
@@ -61,7 +70,20 @@
             <span id="info-prodi"></span>
           </div>
         </div>
-        <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Ganti tema">
+        <button type="button" class="header-btn" id="notif-toggle" aria-label="Aktifkan notifikasi" title="Aktifkan notifikasi kuliah">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-bell-off">
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+            <path d="M18.63 13A17.89 17.89 0 0 1 18 8"></path>
+            <path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"></path>
+            <path d="M18 8a6 6 0 0 0-9.33-5"></path>
+            <line x1="1" y1="1" x2="23" y2="23"></line>
+          </svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-bell-on">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+          </svg>
+        </button>
+        <button type="button" class="header-btn" id="theme-toggle" aria-label="Ganti tema">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-sun">
             <circle cx="12" cy="12" r="4"></circle>
             <path d="M12 2v2"></path>
@@ -92,8 +114,17 @@
     </section>
 
     <section class="section">
-      <h2 class="section-title">Jadwal mingguan</h2>
+      <div class="section-head">
+        <h2 class="section-title">Jadwal mingguan</h2>
+        <div class="filter-group" role="group" aria-label="Filter jadwal">
+          <button type="button" class="filter-btn" data-filter="semua">Semua</button>
+          <button type="button" class="filter-btn" data-filter="hari-ini">Hari ini</button>
+        </div>
+      </div>
       <div id="daftar-hari"></div>
+      <div id="jadwal-kosong" class="jadwal-kosong" hidden>
+        Tidak ada kuliah hari ini. 🎉
+      </div>
     </section>
   </main>
 

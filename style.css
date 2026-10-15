@@ -170,7 +170,7 @@ a { color: inherit; }
 .header-right {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 8px;
 }
 
 .identity {
@@ -179,6 +179,7 @@ a { color: inherit; }
   color: var(--text-soft);
   line-height: 1.4;
   flex-shrink: 0;
+  margin-right: 8px;
 }
 
 .identity-top {
@@ -195,8 +196,8 @@ a { color: inherit; }
   color: var(--text-muted);
 }
 
-/* Tombol toggle tema */
-.theme-toggle {
+/* Tombol header (tema + notifikasi) */
+.header-btn {
   width: 34px;
   height: 34px;
   border-radius: var(--radius-md);
@@ -210,22 +211,36 @@ a { color: inherit; }
   transition: background var(--transition), color var(--transition), border-color var(--transition);
 }
 
-.theme-toggle:hover {
+.header-btn:hover {
   background: var(--surface-hover);
   color: var(--text);
 }
 
-.theme-toggle svg {
+.header-btn svg {
   width: 16px;
   height: 16px;
   display: block;
 }
 
-.theme-toggle .icon-sun { display: none; }
-.theme-toggle .icon-moon { display: block; }
+/* Ikon tema */
+.header-btn .icon-sun { display: none; }
+.header-btn .icon-moon { display: block; }
 
-[data-tema="gelap"] .theme-toggle .icon-sun { display: block; }
-[data-tema="gelap"] .theme-toggle .icon-moon { display: none; }
+[data-tema="gelap"] .header-btn .icon-sun { display: block; }
+[data-tema="gelap"] .header-btn .icon-moon { display: none; }
+
+/* Ikon notifikasi */
+#notif-toggle .icon-bell-on { display: none; }
+#notif-toggle .icon-bell-off { display: block; }
+
+#notif-toggle.notif-aktif {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  background: var(--accent-soft);
+}
+
+#notif-toggle.notif-aktif .icon-bell-on { display: block; }
+#notif-toggle.notif-aktif .icon-bell-off { display: none; }
 
 /* ============================================================
    Layout
@@ -264,6 +279,54 @@ main {
   font-weight: 500;
   color: var(--text-soft);
   margin-bottom: 12px;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.section-head .section-title {
+  margin-bottom: 0;
+}
+
+/* ============================================================
+   Filter jadwal
+   ============================================================ */
+.filter-group {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: 2px;
+  gap: 2px;
+}
+
+.filter-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 0.74rem;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: calc(var(--radius-md) - 2px);
+  cursor: pointer;
+  font-family: inherit;
+  letter-spacing: -0.005em;
+  transition: background var(--transition), color var(--transition);
+}
+
+.filter-btn:hover {
+  color: var(--text);
+}
+
+.filter-btn.aktif {
+  background: var(--accent);
+  color: #fff;
 }
 
 /* ============================================================
@@ -390,6 +453,16 @@ main {
   border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
 }
 
+.jadwal-kosong {
+  background: var(--surface);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-xl);
+  padding: 32px 24px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
 /* ============================================================
    Baris mata kuliah
    ============================================================ */
@@ -460,6 +533,7 @@ main {
   flex-shrink: 0;
 }
 
+/* Baris berlangsung */
 .mk-berlangsung .mk-jam {
   color: var(--live);
 }
@@ -471,6 +545,17 @@ main {
   margin-left: 6px;
 }
 
+/* Span sisa waktu di baris berlangsung */
+.mk-sisa {
+  display: inline;
+  margin-left: 6px;
+  color: var(--live);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
+/* Baris lewat */
 .mk-lewat {
   color: var(--text-muted);
 }
@@ -479,6 +564,15 @@ main {
 .mk-lewat .mk-jam {
   color: var(--text-muted);
   font-weight: 400;
+}
+
+/* Filter "hari ini" */
+[data-filter="hari-ini"] .hari {
+  display: none;
+}
+
+[data-filter="hari-ini"] .hari.hari-ini {
+  display: block;
 }
 
 /* ============================================================
@@ -569,16 +663,18 @@ main {
 
   .site-header-inner {
     padding: 14px 0;
-    gap: 12px;
-  }
-
-  .header-right {
     gap: 10px;
   }
 
-  .identity { text-align: right; }
+  .header-right {
+    gap: 6px;
+  }
 
-  .hero-time { font-size: 1.25rem; }
+  .identity {
+    display: none;
+  }
+
+  .hero-time { font-size: 1.1rem; }
 
   .hari { padding: 0 16px; }
 
@@ -602,6 +698,15 @@ main {
   }
 
   .next-nama { font-size: 1.05rem; }
+
+  .section-head {
+    flex-wrap: wrap;
+  }
+
+  .filter-btn {
+    font-size: 0.72rem;
+    padding: 4px 9px;
+  }
 
   .site-footer {
     margin-top: 40px;
